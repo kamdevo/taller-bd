@@ -1,4 +1,7 @@
--- CONSULTAS SQL DE LA PARTE A
+-- CONSULTAS SQL DE LA PARTE A  (esquema "tienda", creado con S16-tienda.sql)
+-- Uso: docker compose exec postgres psql -U curso -d curso -f /scripts/parte-a.sql
+
+SET search_path TO tienda;
 
 -- 1) Para el pedido 1003: nombre del cliente, nombre de cada producto, cantidad y subtotal (cantidad * precio_unitario).
 
@@ -17,7 +20,7 @@ LEFT JOIN cliente re ON cl.referido_por = re.id_cliente;
 
 -- 3) Productos que nunca se han vendido (en ningún pedido, ni siquiera cancelado).
 
-SELECT p*
+SELECT p.*
 FROM producto p
 WHERE NOT  EXISTS (
     SELECT 1 
@@ -48,7 +51,8 @@ ORDER BY total DESC;
 SELECT EXTRACT(MONTH FROM p.fecha) AS mes, SUM(d.cantidad*d.precio_unitario) AS total
 FROM pedido p
 JOIN detalle d ON d.id_pedido = p.id_pedido 
-WHERE p.estado <> 'cancelado' 
+WHERE p.estado <> 'cancelado'
+-- AND EXTRACT(YEAR FROM p.fecha) = 2026
 GROUP BY EXTRACT(MONTH FROM p.fecha)
 HAVING SUM(d.cantidad*d.precio_unitario) > 200000
 ORDER BY mes;
@@ -82,12 +86,18 @@ ORDER BY c.id_cliente ASC;
 
 -- 9) Un compañero escribió esta consulta para "clientes que no han referido a nadie" y le devuelve 0 filas: SELECT nombre FROM cliente WHERE id_cliente NOT IN (SELECT referido_por FROM cliente); 
 --    Explicar en un comentario por qué y escribir una versión correcta.
-SELECT nombre 
-FROM cliente
-WHERE id_cliente NOT IN (SELECT referido_por FROM cliente);
-
--- EXPLICACION : Si en la columna referido_por de la tabla cliente existe aunque sea un solo valor NULL toda la subconsulta NOT IN ya q al comparar id_cliente con un valor NUll da como resultado NUll
-
+--
+-- Consulta original (devuelve 0 filas):
+--   SELECT nombre FROM cliente WHERE id_cliente NOT IN (SELECT referido_por FROM cliente);
+--
+-- EXPLICACIÓN: la columna referido_por es NULL para los clientes que llegaron solos,
+-- así que la subconsulta devuelve una lista que contiene NULL, p. ej. (NULL, 1, 1, 2, ...).
+-- "x NOT IN (a, b, NULL)" equivale a "x <> a AND x <> b AND x <> NULL".
+-- La comparación x <> NULL nunca es verdadera ni falsa: es DESCONOCIDA (lógica de tres valores).
+-- Un AND que incluye un DESCONOCIDO nunca llega a ser VERDADERO, así que el WHERE
+-- descarta todas las filas y el resultado queda vacío, sin ningún error.
+--
+-- Corrección 1 (recomendada): NOT EXISTS, que no se ve afectado por los NULL.
 SELECT c.nombre
 FROM cliente c
 WHERE NOT EXISTS (
@@ -95,6 +105,11 @@ WHERE NOT EXISTS (
     FROM cliente r 
     WHERE r.referido_por = c.id_cliente
 );
+
+-- Corrección 2 (equivalente): sacar los NULL de la subconsulta.
+SELECT nombre
+FROM cliente
+WHERE id_cliente NOT IN (SELECT referido_por FROM cliente WHERE referido_por IS NOT NULL);
 
 
 -- 10) El o los clientes que más han gastado (sin cancelados), con su total.
@@ -118,6 +133,27 @@ WHERE posicion = 1;
 
 
 -- 11) Clientes que han comprado todos los productos de la categoría Grano, sin cancelados.
+-- Versión principal: división con NOT EXISTS doble.
+-- "Compró todos los Grano" = "no existe un producto Grano que no haya comprado (sin cancelados)".
+SELECT c.id_cliente, c.nombre
+FROM cliente c
+WHERE NOT EXISTS (                       -- no existe...
+    SELECT 1
+    FROM producto pr
+    WHERE pr.categoria = 'Grano'         -- ...un producto Grano...
+      AND NOT EXISTS (                   -- ...que el cliente no haya comprado
+          SELECT 1
+          FROM pedido p
+          JOIN detalle d ON d.id_pedido = p.id_pedido
+          WHERE p.id_cliente = c.id_cliente
+            AND d.id_producto = pr.id_producto
+            AND p.estado <> 'cancelado'
+      )
+)
+ORDER BY c.id_cliente;
+
+-- Versión alternativa (reto R1): por conteo. Se usa COUNT(DISTINCT ...) porque un cliente
+-- puede haber comprado el mismo producto en varios pedidos y COUNT(*) lo contaría dos veces.
 WITH total_granos AS (
     SELECT COUNT(id_producto) AS n_granos
     FROM producto
