@@ -47,19 +47,6 @@ LIMIT 20;
 \echo '=== Reporte 1: los 20 libros más prestados (con empates) ==='
 SELECT * FROM reporte_libros_mas_prestados ORDER BY prestamos DESC, titulo;
 
--- Reporte 1b (solo prueba del caso 2): el mismo reporte con top 3.
--- Esperado: 4 filas, porque Ficciones y Pedro Páramo empatan en el 3.er puesto.
-\echo '=== Reporte 1b (prueba de empates): top 3 con WITH TIES ==='
-SELECT * FROM (
-  SELECT l.titulo, count(p.id) AS prestamos
-  FROM libro l
-  LEFT JOIN prestamo p ON p.isbn = l.isbn
-  GROUP BY l.isbn, l.titulo
-  ORDER BY prestamos DESC
-  FETCH FIRST 3 ROWS WITH TIES
-) t
-ORDER BY prestamos DESC, titulo;
-
 
 -- ---------------------------------------------------------------------
 -- Reporte 2. El o los lectores que más libros han leído.
