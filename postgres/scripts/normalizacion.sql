@@ -15,9 +15,14 @@ SELECT cod_servicio FROM servicio_plano GROUP BY cod_servicio
 SELECT cod_mecanico FROM servicio_plano GROUP BY cod_mecanico
  HAVING COUNT(DISTINCT nombre_mecanico) > 1;
 
--- Corrección (EJEMPLO: cambiar por el dato correcto y justificar)
--- UPDATE servicio_plano SET modelo = 'Sail'
---  WHERE placa = 'DEF456';   -- justificación: ...
+-- Hallazgo: la cédula 16700002 (Jorge Mejía) aparece con dos teléfonos:
+-- 3104445566 en 4 filas (órdenes 5002 y 5003) y 3104445567 en 1 fila (orden 5006).
+-- Se toma 3104445566 como correcto: es el que más se repite y el de la orden 5006
+-- solo cambia el último dígito (error de digitación).
+UPDATE servicio_plano SET telefono_dueno = '3104445566'
+ WHERE cedula_dueno = '16700002' AND telefono_dueno = '3104445567';
+
+-- Volver a correr la consulta de cedula_dueno: debe dar 0 filas.
 
 -- (b) PASO 2: crear tablas 3FN
 CREATE TABLE dueno (
@@ -25,29 +30,29 @@ CREATE TABLE dueno (
   nombre VARCHAR(80) NOT NULL,
   telefono VARCHAR(15) NOT NULL);
 CREATE TABLE modelo (
-  modelo VARCHAR(40) PRIMARY KEY,
-  marca VARCHAR(40) NOT NULL);
+  modelo VARCHAR(30) PRIMARY KEY,
+  marca VARCHAR(30) NOT NULL);
 CREATE TABLE mecanico (
-  cod_mecanico VARCHAR(5) PRIMARY KEY,
+  cod_mecanico CHAR(3) PRIMARY KEY,
   nombre_mecanico VARCHAR(80) NOT NULL);
 CREATE TABLE servicio (
   cod_servicio CHAR(3) PRIMARY KEY,
   nombre_servicio VARCHAR(60) NOT NULL,
   precio_lista INTEGER NOT NULL);
 CREATE TABLE vehiculo (
-  placa VARCHAR(10) PRIMARY KEY,
-  modelo VARCHAR(40) NOT NULL REFERENCES modelo,
+  placa CHAR(6) PRIMARY KEY,
+  modelo VARCHAR(30) NOT NULL REFERENCES modelo,
   cedula_dueno VARCHAR(15) NOT NULL REFERENCES dueno);
 CREATE TABLE orden (
   num_orden INTEGER PRIMARY KEY,
   fecha_ingreso DATE NOT NULL,
   kilometraje INTEGER NOT NULL,
-  placa VARCHAR(10) NOT NULL REFERENCES vehiculo);
+  placa CHAR(6) NOT NULL REFERENCES vehiculo);
 CREATE TABLE orden_servicio (
   num_orden INTEGER REFERENCES orden,
   cod_servicio CHAR(3) REFERENCES servicio,
   precio_cobrado INTEGER NOT NULL,
-  cod_mecanico VARCHAR(5) NOT NULL REFERENCES mecanico,
+  cod_mecanico CHAR(3) NOT NULL REFERENCES mecanico,
   PRIMARY KEY (num_orden, cod_servicio));
 
 -- (c) PASO 3: llenar en orden que respete las FK
@@ -86,7 +91,7 @@ SELECT * FROM reconstruida EXCEPT SELECT * FROM servicio_plano;  -- debe dar 0 f
 
 -- (e) PASO 5: anomalías (hacer DESPUÉS de (d))
 -- Actualización: un solo UPDATE cambia el teléfono
-UPDATE dueno SET telefono = '3000000000' WHERE cedula = '1144000003';
+UPDATE dueno SET telefono = '3000000000' WHERE cedula = '16700002';  -- Jorge tiene 3 órdenes: basta 1 cambio
 -- Inserción: mecánico nuevo sin servicios
 INSERT INTO mecanico VALUES ('M09', 'Mecánico Nuevo');
 -- Borrado: quitar la orden 5005 sin perder vehículo ni servicio
