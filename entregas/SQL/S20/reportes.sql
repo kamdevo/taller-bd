@@ -62,7 +62,7 @@ SELECT * FROM reporte_libros_mas_prestados ORDER BY prestamos DESC, titulo;
 CREATE OR REPLACE VIEW reporte_lectores_que_mas_leen AS
 WITH leidos AS (
   SELECT p.id_lector, count(*) AS libros_leidos
-  FROM prestamo p
+  FROM prestamo_estado p
   WHERE p.estado = 'devuelto'
   GROUP BY p.id_lector
 )
@@ -91,7 +91,7 @@ CREATE OR REPLACE VIEW reporte_lectores_morosos AS
 SELECT u.documento, u.nombres, u.apellidos
 FROM usuario u
 WHERE EXISTS (SELECT 1
-              FROM prestamo p
+              FROM prestamo_estado p
               WHERE p.id_lector = u.id
                 AND p.estado <> 'devuelto'                       -- no devuelto
                 AND p.fecha_esperada_devolucion < CURRENT_DATE); -- y ya vencido
@@ -122,7 +122,7 @@ SELECT p.id                                  AS id_prestamo,
        l.titulo,
        p.fecha_esperada_devolucion,
        CURRENT_DATE - p.fecha_esperada_devolucion AS dias_mora
-FROM prestamo p
+FROM prestamo_estado p
 JOIN usuario u ON u.id   = p.id_lector
 JOIN libro   l ON l.isbn = p.isbn
 WHERE p.estado <> 'devuelto'
